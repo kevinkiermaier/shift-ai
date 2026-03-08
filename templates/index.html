@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상세페이지 AI 자동화</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #0f0f1a; color: #fff; min-height: 100vh; }
+
+/* ─── 헤더 ─── */
+header { padding: 20px 40px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #ffffff15; }
+.logo { width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+header h1 { font-size: 18px; font-weight: 700; }
+header span { font-size: 12px; color: #888; margin-left: 4px; }
+
+/* ─── 입력 화면 ─── */
+#inputScreen { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+#inputScreen h2 { font-size: 28px; font-weight: 800; text-align: center; margin-bottom: 8px; }
+#inputScreen .sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 40px; }
+
+/* 카테고리 그리드 */
+.cat-label { font-size: 13px; color: #aaa; margin-bottom: 12px; }
+.cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.cat-card { background: #1a1a2e; border: 2px solid #ffffff10; border-radius: 14px; padding: 16px 12px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.cat-card:hover { border-color: #6366f1; background: #1e1b4b; }
+.cat-card.active { border-color: #6366f1; background: #1e1b4b; }
+.cat-card .icon { font-size: 28px; margin-bottom: 8px; }
+.cat-card .name { font-size: 13px; font-weight: 600; }
+
+/* 서브카테고리 */
+.subcats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; min-height: 36px; }
+.subcat-btn { padding: 6px 14px; background: #1a1a2e; border: 1px solid #ffffff20; border-radius: 20px; font-size: 13px; cursor: pointer; color: #ccc; transition: all 0.2s; }
+.subcat-btn:hover, .subcat-btn.active { background: #6366f1; border-color: #6366f1; color: white; }
+
+/* 입력 폼 */
+.form-card { background: #1a1a2e; border-radius: 16px; padding: 28px; border: 1px solid #ffffff10; }
+.form-row { margin-bottom: 20px; }
+.form-row label { display: block; font-size: 13px; color: #aaa; margin-bottom: 8px; }
+.form-row input[type="text"] { width: 100%; padding: 14px 16px; background: #0f0f1a; border: 1px solid #ffffff20; border-radius: 10px; color: white; font-size: 15px; outline: none; }
+.form-row input[type="text"]:focus { border-color: #6366f1; }
+
+/* 파일 업로드 */
+.upload-area { border: 2px dashed #ffffff25; border-radius: 12px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+.upload-area:hover, .upload-area.dragover { border-color: #6366f1; background: #1e1b4b30; }
+.upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload-area .icon { font-size: 32px; margin-bottom: 8px; }
+.upload-area p { font-size: 13px; color: #888; }
+.upload-area .filename { color: #6366f1; font-size: 13px; margin-top: 8px; display: none; }
+#previewImg { max-height: 120px; border-radius: 8px; margin-top: 12px; display: none; }
+
+/* 생성 버튼 */
+.gen-btn { width: 100%; padding: 16px; background: linear-gradient(135deg, #6366f1, #a855f7); border: none; border-radius: 12px; color: white; font-size: 17px; font-weight: 700; cursor: pointer; margin-top: 8px; transition: opacity 0.2s; }
+.gen-btn:hover { opacity: 0.9; }
+.gen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── 로딩 ─── */
+#loadingScreen { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
+.spinner { width: 48px; height: 48px; border: 4px solid #ffffff20; border-top-color: #6366f1; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#loadingScreen p { color: #aaa; font-size: 15px; }
+
+/* ─── 결과 화면 ─── */
+#resultScreen { display: none; }
+.result-topbar { display: flex; align-items: center; justify-content: space-between; padding: 16px 32px; background: #1a1a2e; border-bottom: 1px solid #ffffff10; position: sticky; top: 0; z-index: 100; }
+.result-topbar h3 { font-size: 15px; }
+.topbar-btns { display: flex; gap: 10px; }
+.btn-outline { padding: 8px 18px; border: 1px solid #ffffff30; background: transparent; color: white; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.btn-outline:hover { background: #ffffff10; }
+.btn-primary { padding: 8px 20px; background: #6366f1; border: none; color: white; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-copy { padding: 4px 10px; background: #6366f120; border: 1px solid #6366f1; color: #a5b4fc; border-radius: 6px; font-size: 12px; cursor: pointer; margin-left: 8px; }
+
+/* ─── 상세페이지 레이아웃 ─── */
+#detailPage { max-width: 860px; margin: 0 auto; background: white; color: #111; }
+
+/* 히어로 */
+.dp-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: 420px; }
+.dp-hero-img { background: #f5f5f5; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.dp-hero-img img { width: 100%; height: 100%; object-fit: cover; }
+.dp-hero-text { padding: 48px 40px; display: flex; flex-direction: column; justify-content: center; }
+.dp-category-tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 4px; margin-bottom: 16px; }
+.dp-headline { font-size: 32px; font-weight: 900; line-height: 1.2; margin-bottom: 12px; color: #111; }
+.dp-subheadline { font-size: 15px; color: #555; margin-bottom: 32px; line-height: 1.6; }
+.dp-cta-btn { display: inline-block; padding: 14px 32px; color: white; border-radius: 10px; font-weight: 700; font-size: 15px; text-align: center; }
+
+/* 특징 */
+.dp-features { padding: 48px 40px; background: #fafafa; }
+.dp-section-title { font-size: 13px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #999; margin-bottom: 24px; }
+.dp-feature-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.dp-feature-card { background: white; border-radius: 12px; padding: 20px 16px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.dp-feature-num { width: 36px; height: 36px; border-radius: 50%; color: white; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+.dp-feature-card h4 { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #111; }
+.dp-feature-card p { font-size: 11px; color: #777; line-height: 1.5; }
+
+/* 설명 */
+.dp-description { padding: 48px 40px; }
+.dp-desc-text { font-size: 15px; line-height: 1.9; color: #444; white-space: pre-line; }
+
+/* 스펙 */
+.dp-specs { padding: 32px 40px; background: #fafafa; }
+.dp-spec-table { width: 100%; border-collapse: collapse; }
+.dp-spec-table td { padding: 12px 16px; border-bottom: 1px solid #eee; font-size: 14px; }
+.dp-spec-table td:first-child { font-weight: 700; color: #555; width: 30%; background: #f5f5f5; }
+
+/* 리뷰 */
+.dp-reviews { padding: 48px 40px; }
+.dp-review-list { display: flex; flex-direction: column; gap: 16px; }
+.dp-review-card { background: #f9f9f9; border-radius: 10px; padding: 16px 20px; }
+.dp-review-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dp-review-name { font-size: 13px; font-weight: 700; color: #333; }
+.dp-review-stars { color: #fbbf24; font-size: 13px; }
+.dp-review-text { font-size: 13px; color: #555; line-height: 1.6; }
+
+/* 해시태그 */
+.dp-hashtags { padding: 24px 40px 48px; display: flex; flex-wrap: wrap; gap: 8px; }
+.dp-tag { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+
+/* 플랫폼 상품명 */
+.platform-titles { padding: 24px 32px; background: #1a1a2e; }
+.platform-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.platform-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; margin-top: 2px; }
+.platform-badge.ss { background: #03c75a20; color: #03c75a; border: 1px solid #03c75a40; }
+.platform-badge.cp { background: #e6002820; color: #e60028; border: 1px solid #e6002840; }
+.platform-title-text { font-size: 13px; color: #ccc; line-height: 1.5; flex: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">✦</div>
+  <h1>상세페이지 AI</h1>
+  <span>상품명만 입력하면 완성</span>
+</header>
+
+<!-- 입력 화면 -->
+<div id="inputScreen">
+  <h2>어떤 상품의 상세페이지를<br>만드시겠어요?</h2>
+  <p class="sub">카테고리 선택 후 상품명을 입력하면 AI가 자동으로 생성합니다</p>
+
+  <p class="cat-label">상세 카테고리 선택</p>
+  <div class="cat-grid" id="catGrid">
+    <div class="cat-card active" data-cat="생필품" onclick="selectCat(this)">
+      <div class="icon">🧻</div><div class="name">생필품</div>
+    </div>
+    <div class="cat-card" data-cat="간편식품" onclick="selectCat(this)">
+      <div class="icon">🍜</div><div class="name">간편식품</div>
+    </div>
+    <div class="cat-card" data-cat="신선식품" onclick="selectCat(this)">
+      <div class="icon">🥦</div><div class="name">신선식품</div>
+    </div>
+    <div class="cat-card" data-cat="건강/뷰티" onclick="selectCat(this)">
+      <div class="icon">💊</div><div class="name">건강/뷰티</div>
+    </div>
+    <div class="cat-card" data-cat="의류/패션" onclick="selectCat(this)">
+      <div class="icon">👗</div><div class="name">의류/패션</div>
+    </div>
+    <div class="cat-card" data-cat="디지털/가전" onclick="selectCat(this)">
+      <div class="icon">📱</div><div class="name">디지털/가전</div>
+    </div>
+    <div class="cat-card" data-cat="스포츠/레저" onclick="selectCat(this)">
+      <div class="icon">⚽</div><div class="name">스포츠/레저</div>
+    </div>
+    <div class="cat-card" data-cat="홈/리빙" onclick="selectCat(this)">
+      <div class="icon">🛋️</div><div class="name">홈/리빙</div>
+    </div>
+  </div>
+
+  <div class="subcats" id="subcatArea"></div>
+
+  <div class="form-card">
+    <div class="form-row">
+      <label>상품명 *</label>
+      <input type="text" id="productName" placeholder="예: 코디 내추럴 소프트 3겹 화장지 30롤" />
+    </div>
+    <div class="form-row">
+      <label>상품 사진 (선택 — 없으면 AI가 자동 생성)</label>
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="photoInput" accept="image/*" onchange="handleFile(this)">
+        <div class="icon">📷</div>
+        <p>클릭하거나 사진을 여기에 드래그하세요</p>
+        <div class="filename" id="fileName"></div>
+        <img id="previewImg" alt="미리보기">
+      </div>
+    </div>
+    <button class="gen-btn" id="genBtn" onclick="generate()">✦ AI 생성하기</button>
+  </div>
+</div>
+
+<!-- 로딩 -->
+<div id="loadingScreen">
+  <div class="spinner"></div>
+  <p>AI가 상세페이지를 만들고 있어요...<br><small style="color:#666">약 20~40초 소요됩니다</small></p>
+</div>
+
+<!-- 결과 화면 -->
+<div id="resultScreen">
+  <div class="result-topbar">
+    <h3 id="resultTitle">상세페이지 완성</h3>
+    <div class="topbar-btns">
+      <button class="btn-outline" onclick="goBack()">← 다시 만들기</button>
+      <button class="btn-primary" onclick="downloadImage()">⬇ 이미지 저장</button>
+    </div>
+  </div>
+
+  <div id="detailPage">
+    <!-- 히어로 -->
+    <div class="dp-hero">
+      <div class="dp-hero-img">
+        <img id="dpImg" src="" alt="상품이미지">
+      </div>
+      <div class="dp-hero-text">
+        <span class="dp-category-tag" id="dpCatTag"></span>
+        <div class="dp-headline" id="dpHeadline"></div>
+        <div class="dp-subheadline" id="dpSubheadline"></div>
+        <div class="dp-cta-btn" id="dpCta"></div>
+      </div>
+    </div>
+
+    <!-- 특징 -->
+    <div class="dp-features">
+      <div class="dp-section-title">KEY FEATURES</div>
+      <div class="dp-feature-grid" id="dpFeatures"></div>
+    </div>
+
+    <!-- 설명 -->
+    <div class="dp-description">
+      <div class="dp-section-title">PRODUCT DETAIL</div>
+      <div class="dp-desc-text" id="dpDesc"></div>
+    </div>
+
+    <!-- 스펙 -->
+    <div class="dp-specs">
+      <div class="dp-section-title">SPECIFICATION</div>
+      <table class="dp-spec-table" id="dpSpecs"></table>
+    </div>
+
+    <!-- 리뷰 -->
+    <div class="dp-reviews">
+      <div class="dp-section-title">CUSTOMER REVIEW</div>
+      <div class="dp-review-list" id="dpReviews"></div>
+    </div>
+
+    <!-- 해시태그 -->
+    <div class="dp-hashtags" id="dpHashtags"></div>
+  </div>
+
+  <!-- 플랫폼 상품명 (다운로드 제외) -->
+  <div class="platform-titles" id="platformTitles">
+    <div class="platform-row">
+      <span class="platform-badge ss">스마트스토어</span>
+      <span class="platform-title-text" id="ssTitle"></span>
+      <button class="btn-copy" onclick="copyText('ssTitle')">복사</button>
+    </div>
+    <div class="platform-row">
+      <span class="platform-badge cp">쿠팡</span>
+      <span class="platform-title-text" id="cpTitle"></span>
+      <button class="btn-copy" onclick="copyText('cpTitle')">복사</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUBCATS = {{ categories | tojson }};
+let selectedCat = "생필품";
+let selectedSubcat = "";
+
+// 카테고리 선택
+function selectCat(el) {
+  document.querySelectorAll(".cat-card").forEach(c => c.classList.remove("active"));
+  el.classList.add("active");
+  selectedCat = el.dataset.cat;
+  renderSubcats();
+}
+
+function renderSubcats() {
+  const area = document.getElementById("subcatArea");
+  const subs = SUBCATS[selectedCat] || [];
+  area.innerHTML = subs.map((s, i) =>
+    `<button class="subcat-btn ${i === 0 ? 'active' : ''}" onclick="selectSubcat(this, '${s}')">${s}</button>`
+  ).join("");
+  selectedSubcat = subs[0] || "";
+}
+
+function selectSubcat(el, sub) {
+  document.querySelectorAll(".subcat-btn").forEach(b => b.classList.remove("active"));
+  el.classList.add("active");
+  selectedSubcat = sub;
+}
+
+// 파일 업로드
+function handleFile(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  document.getElementById("fileName").style.display = "block";
+  document.getElementById("fileName").textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById("previewImg");
+    img.src = e.target.result;
+    img.style.display = "block";
+  };
+  reader.readAsDataURL(file);
+}
+
+// 드래그&드롭
+const uploadArea = document.getElementById("uploadArea");
+uploadArea.addEventListener("dragover", e => { e.preventDefault(); uploadArea.classList.add("dragover"); });
+uploadArea.addEventListener("dragleave", () => uploadArea.classList.remove("dragover"));
+uploadArea.addEventListener("drop", e => {
+  e.preventDefault();
+  uploadArea.classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith("image/")) {
+    const input = document.getElementById("photoInput");
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    input.files = dt.files;
+    handleFile(input);
+  }
+});
+
+// Enter 키
+document.addEventListener("DOMContentLoaded", () => {
+  renderSubcats();
+  document.getElementById("productName").addEventListener("keydown", e => {
+    if (e.key === "Enter") generate();
+  });
+});
+
+// 생성
+async function generate() {
+  const productName = document.getElementById("productName").value.trim();
+  if (!productName) { alert("상품명을 입력해주세요."); return; }
+
+  document.getElementById("genBtn").disabled = true;
+  document.getElementById("inputScreen").style.display = "none";
+  document.getElementById("loadingScreen").style.display = "flex";
+  document.getElementById("resultScreen").style.display = "none";
+
+  const formData = new FormData();
+  formData.append("product_name", productName);
+  formData.append("category", selectedCat);
+  formData.append("subcategory", selectedSubcat);
+  const photoInput = document.getElementById("photoInput");
+  if (photoInput.files[0]) formData.append("photo", photoInput.files[0]);
+
+  try {
+    const res = await fetch("/generate", { method: "POST", body: formData });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || "오류 발생"); goBack(); return; }
+    renderResult(data);
+  } catch (e) {
+    alert("서버 오류: " + e.message);
+    goBack();
+  } finally {
+    document.getElementById("genBtn").disabled = false;
+    document.getElementById("loadingScreen").style.display = "none";
+  }
+}
+
+function renderResult(data) {
+  const c = data.content;
+  const color = c.color || "#4f46e5";
+
+  // 이미지
+  if (data.image) {
+    document.getElementById("dpImg").src = `data:${data.image_mime};base64,${data.image}`;
+  }
+
+  // 카테고리 태그
+  const tag = document.getElementById("dpCatTag");
+  tag.textContent = `${data.category} · ${data.subcategory}`;
+  tag.style.background = color + "20";
+  tag.style.color = color;
+
+  // 텍스트
+  document.getElementById("dpHeadline").textContent = c.headline;
+  document.getElementById("dpSubheadline").textContent = c.subheadline;
+  const ctaEl = document.getElementById("dpCta");
+  ctaEl.textContent = c.cta;
+  ctaEl.style.background = color;
+
+  // 특징
+  document.getElementById("dpFeatures").innerHTML = (c.features || []).map((f, i) => `
+    <div class="dp-feature-card">
+      <div class="dp-feature-num" style="background:${color}">${i + 1}</div>
+      <h4>${f.title}</h4>
+      <p>${f.desc}</p>
+    </div>`).join("");
+
+  // 설명
+  document.getElementById("dpDesc").textContent = c.description;
+
+  // 스펙
+  document.getElementById("dpSpecs").innerHTML = (c.specs || []).map(s =>
+    `<tr><td>${s.label}</td><td>${s.value}</td></tr>`).join("");
+
+  // 리뷰
+  document.getElementById("dpReviews").innerHTML = (c.reviews || []).map(r => `
+    <div class="dp-review-card">
+      <div class="dp-review-header">
+        <span class="dp-review-name">${r.name}</span>
+        <span class="dp-review-stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</span>
+      </div>
+      <div class="dp-review-text">${r.text}</div>
+    </div>`).join("");
+
+  // 해시태그
+  document.getElementById("dpHashtags").innerHTML = (c.hashtags || []).map(t =>
+    `<span class="dp-tag" style="background:${color}15;color:${color}">#${t}</span>`).join("");
+
+  // 플랫폼 상품명
+  document.getElementById("ssTitle").textContent = c.smartstore_title || "";
+  document.getElementById("cpTitle").textContent = c.coupang_title || "";
+  document.getElementById("resultTitle").textContent = `${data.product_name} 상세페이지 완성`;
+
+  document.getElementById("resultScreen").style.display = "block";
+}
+
+function goBack() {
+  document.getElementById("loadingScreen").style.display = "none";
+  document.getElementById("resultScreen").style.display = "none";
+  document.getElementById("inputScreen").style.display = "block";
+}
+
+async function downloadImage() {
+  const el = document.getElementById("detailPage");
+  const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+  const link = document.createElement("a");
+  link.download = "상세페이지.png";
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
+
+function copyText(id) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => alert("복사되었습니다!"));
+}
+</script>
+</body>
+</html>

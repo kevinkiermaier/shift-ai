@@ -1,0 +1,21 @@
+============================
+상세페이지 AI 자동화 실행 방법
+============================
+
+1. .env 파일 열어서 API 키 입력
+   - ANTHROPIC_API_KEY= 뒤에 클로드 API 키 붙여넣기
+   - GEMINI_API_KEY= 뒤에 제미나이 API 키 붙여넣기
+
+2. 터미널에서 이 폴더로 이동
+   cd "/Users/kevin/Documents/Daily JOB/상세페이지_자동화"
+
+3. 패키지 설치 (처음 한 번만)
+   pip3 install -r requirements.txt
+
+4. 실행
+   python3 app.py
+
+5. 브라우저에서 접속
+   http://localhost:5000
+
+============================
