@@ -260,41 +260,8 @@ const callClaude = async (msg, imgDataUrl = null) => {
   return (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
 };
 
-// ── 로그인 화면 ──
-const LoginScreen = ({ onLogin }) => {
-  const [pw, setPw] = useState("");
-  const [err, setErr] = useState(false);
-  const submit = () => {
-    if (pw === "0911") { onLogin(); }
-    else { setErr(true); setPw(""); setTimeout(() => setErr(false), 2000); }
-  };
-  return (
-    <div style={{ minHeight: "100vh", background: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Apple SD Gothic Neo','Malgun Gothic',sans-serif" }}>
-      <div style={{ background: "#fff", borderRadius: 20, padding: "48px 40px", boxShadow: "0 8px 40px rgba(0,0,0,.12)", width: 340, textAlign: "center" }}>
-        <div style={{ width: 52, height: 52, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 20px" }}>⚡</div>
-        <div style={{ fontSize: 20, fontWeight: 900, color: "#1e1b4b", marginBottom: 6 }}>Shift AI</div>
-        <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 32 }}>비밀번호를 입력하세요</div>
-        <input
-          type="password"
-          value={pw}
-          onChange={e => setPw(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && submit()}
-          placeholder="비밀번호"
-          style={{ width: "100%", padding: "13px 18px", borderRadius: 50, border: `1.5px solid ${err ? "#ef4444" : "#e2e8f0"}`, fontSize: 15, fontFamily: "inherit", outline: "none", boxSizing: "border-box", marginBottom: 12, textAlign: "center", letterSpacing: 4 }}
-          autoFocus
-        />
-        {err && <div style={{ fontSize: 13, color: "#ef4444", marginBottom: 10 }}>비밀번호가 틀렸습니다</div>}
-        <button onClick={submit} style={{ width: "100%", padding: "13px", borderRadius: 50, border: "none", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", fontSize: 15, fontWeight: 900, cursor: "pointer" }}>
-          입장
-        </button>
-      </div>
-    </div>
-  );
-};
-
 // ── 메인 앱 ──
 export default function App() {
-  const [auth, setAuth] = useState(false);
   const [pname, setPN]   = useState("");
   const [loading, setLoading] = useState(false);
   const [loadMsg, setLoadMsg] = useState("");
@@ -368,8 +335,6 @@ const handleHeroUpload = e => {
     } catch { alert("JPG 변환 오류. HTML 다운로드를 이용하세요."); }
     finally { setDownloading(false); }
   };
-
-  if (!auth) return <LoginScreen onLogin={() => setAuth(true)} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#f1f5f9", fontFamily: "'Apple SD Gothic Neo','Malgun Gothic',sans-serif" }}>
