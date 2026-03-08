@@ -16,6 +16,8 @@ app = Flask(__name__)
 app.json.ensure_ascii = False
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024
 app.secret_key = os.getenv("SECRET_KEY", "shift-secret-2026")
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv("RAILWAY_ENVIRONMENT") is not None
 SHIFT_PIN = os.getenv("SHIFT_PIN", "1234")
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
