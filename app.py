@@ -6,8 +6,6 @@ import json
 import requests as http_requests
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from anthropic import Anthropic
-from google import genai
-from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,7 +24,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-gemini = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 CATEGORIES = {
     "생필품": ["화장지/위생용품", "세제/세정제", "주방용품", "청소용품", "욕실용품"],
@@ -92,16 +89,15 @@ def generate_content(product_name, category, subcategory):
 
 def generate_product_image(product_name, category, context=""):
     if context:
-        prompt = f"{context}. Studio lighting, clean background, commercial product photography, high detail, photorealistic. No text overlays, no added captions, no watermarks."
+        prompt = f"{context}. Studio lighting, clean background, commercial product photography, high detail, photorealistic. No text overlays, no watermarks."
     else:
-        prompt = f"Professional product photo of '{product_name}'. Clean white background, studio lighting, sharp details, commercial quality, photorealistic. No text overlays, no added captions, no watermarks."
+        prompt = f"Professional product photo of {product_name}. Clean white background, studio lighting, sharp details, commercial quality, photorealistic. No text overlays, no watermarks."
 
-    result = gemini.models.generate_images(
-        model="imagen-4.0-generate-001",
-        prompt=prompt,
-        config=types.GenerateImagesConfig(number_of_images=1, aspect_ratio="1:1"),
-    )
-    return result.generated_images[0].image.image_bytes
+    encoded = http_requests.utils.quote(prompt)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&model=flux"
+    resp = http_requests.get(url, timeout=60)
+    resp.raise_for_status()
+    return resp.content
 
 
 _kw_cache = {"time": 0, "keywords": []}
