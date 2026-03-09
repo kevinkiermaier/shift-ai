@@ -217,7 +217,7 @@ function del(){pin=pin.slice(0,-1);for(let i=0;i<4;i++)document.getElementById('
 function submit(){
   fetch('/shift-auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})})
   .then(r=>r.json()).then(d=>{
-    if(d.ok){location.href='/shift';}
+    if(d.ok){location.href='/shift-app';}
     else{
       for(let i=0;i<4;i++)document.getElementById('d'+i).className='dot error';
       document.getElementById('err').textContent='PIN이 올바르지 않습니다';
@@ -231,23 +231,28 @@ function submit(){
 def shift_auth():
     data = request.json or {}
     if data.get("pin") == SHIFT_PIN:
-        session["shift_ok"] = True
         return jsonify({"ok": True})
     return jsonify({"ok": False})
 
-# React 앱 정적 파일 서빙
+# PIN 페이지 (항상 PIN 요구)
 @app.route("/shift")
-@app.route("/shift/<path:path>")
+def serve_pin():
+    return PIN_PAGE, 200, {"Content-Type": "text/html"}
+
+# React 앱 (PIN 인증 후 리다이렉트되는 경로)
+@app.route("/shift-app")
+@app.route("/shift-app/<path:path>")
 def serve_react(path=""):
-    if not session.get("shift_ok"):
-        if path and path.startswith("assets/"):
-            static_dir = os.path.join(os.path.dirname(__file__), "static")
-            return send_from_directory(static_dir, path)
-        return PIN_PAGE, 200, {"Content-Type": "text/html"}
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     if path and os.path.exists(os.path.join(static_dir, path)):
         return send_from_directory(static_dir, path)
     return send_from_directory(static_dir, "index.html")
+
+# assets 파일 서빙
+@app.route("/shift/assets/<path:path>")
+def serve_assets(path):
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    return send_from_directory(os.path.join(static_dir, "assets"), path)
 
 
 @app.route("/")
