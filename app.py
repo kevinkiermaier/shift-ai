@@ -93,11 +93,17 @@ def generate_product_image(product_name, category, context=""):
     else:
         prompt = f"Professional product photo of {product_name}. Clean white background, studio lighting, sharp details, commercial quality, photorealistic. No text overlays, no watermarks."
 
+    # Pollinations.ai (무료, API키 불필요)
     encoded = http_requests.utils.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&model=flux"
-    resp = http_requests.get(url, timeout=60)
-    resp.raise_for_status()
-    return resp.content
+    for model in ["flux-realism", "flux", "turbo"]:
+        try:
+            url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&model={model}&seed={int(time.time())}"
+            resp = http_requests.get(url, timeout=90)
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                return resp.content
+        except Exception:
+            continue
+    raise Exception("이미지 생성 실패")
 
 
 _kw_cache = {"time": 0, "keywords": []}
