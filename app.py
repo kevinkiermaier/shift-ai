@@ -7,6 +7,7 @@ import requests as http_requests
 from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from anthropic import Anthropic
 from dotenv import load_dotenv
+from google import genai as google_genai
 
 load_dotenv()
 
@@ -93,16 +94,48 @@ def generate_product_image(product_name, category, context=""):
     else:
         prompt = f"Professional product photo of {product_name}. Clean white background, studio lighting, sharp details, commercial quality, photorealistic. No text overlays, no watermarks."
 
-    # Pollinations.ai (무료, API키 불필요)
+    # 1. Google Imagen 4 (GEMINI_API_KEY)
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            client = google_genai.Client(api_key=gemini_key)
+            result = client.models.generate_images(
+                model="imagen-4.0-fast-generate-001",
+                prompt=prompt,
+                config={"number_of_images": 1},
+            )
+            img_bytes = result.generated_images[0].image.image_bytes
+            if img_bytes and len(img_bytes) > 1000:
+                return img_bytes
+        except Exception:
+            pass
+
+    # 2. HuggingFace (HF_TOKEN 있을 경우 폴백)
+    hf_token = os.getenv("HF_TOKEN")
+    if hf_token:
+        try:
+            resp = http_requests.post(
+                "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+                headers={"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"},
+                json={"inputs": prompt},
+                timeout=120,
+            )
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                return resp.content
+        except Exception:
+            pass
+
+    # 3. Pollinations.ai (무료, API키 불필요 - 서비스 상태에 따라 작동)
     encoded = http_requests.utils.quote(prompt)
-    for model in ["flux-realism", "flux", "turbo"]:
+    for model in ["turbo", "sana", "flux"]:
         try:
             url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&model={model}&seed={int(time.time())}"
-            resp = http_requests.get(url, timeout=90)
+            resp = http_requests.get(url, timeout=60)
             if resp.status_code == 200 and len(resp.content) > 1000:
                 return resp.content
         except Exception:
             continue
+
     raise Exception("이미지 생성 실패")
 
 

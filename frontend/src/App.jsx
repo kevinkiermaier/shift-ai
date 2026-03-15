@@ -254,7 +254,7 @@ const callClaude = async (msg, imgDataUrl = null) => {
     : msg;
   const res = await fetch("/api/claude", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: DP_SYSTEM, messages: [{ role: "user", content }] }),
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 3000, system: DP_SYSTEM, messages: [{ role: "user", content }] }),
   });
   const data = await res.json();
   return (data.content || []).filter(b => b.type === "text").map(b => b.text).join("");
@@ -271,7 +271,18 @@ export default function App() {
   const [heroName, setHeroName] = useState("");
   const [pointImgs, setPointImgs] = useState(["", "", ""]);
   const [downloading, setDownloading] = useState(false);
+  const [topKw, setTopKw] = useState([]);
+  const [kwLoading, setKwLoading] = useState(false);
   const pageRef = useRef(null);
+
+  useEffect(() => {
+    setKwLoading(true);
+    fetch("/api/trending-keywords")
+      .then(r => r.json())
+      .then(d => setTopKw(d.keywords || []))
+      .catch(() => {})
+      .finally(() => setKwLoading(false));
+  }, []);
 
 const handleHeroUpload = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -305,12 +316,15 @@ const handleHeroUpload = e => {
 
       const rawCtxs = parsed.pointContexts || (parsed.points || []).map(p => p.title || pname);
       const ctxs = [...rawCtxs, pname, pname, pname].slice(0, 3);
-      const pimgs = await Promise.all(
-        ctxs.map((ctx, i) => pointImgs[i] ? Promise.resolve(pointImgs[i]) : fetchImg(ctx))
-      );
+      const heroCtx = parsed.pointContexts?.[0] || pname;
+      const [pimgs, heroGenerated] = await Promise.all([
+        Promise.all(ctxs.map((ctx, i) => pointImgs[i] ? Promise.resolve(pointImgs[i]) : fetchImg(ctx))),
+        heroImg ? Promise.resolve(heroImg) : fetchImg(heroCtx),
+      ]);
       const pimgs3 = [pimgs[0] || "", pimgs[1] || "", pimgs[2] || ""];
       setResult(parsed);
       setPointImgs(pimgs3);
+      if (!heroImg && heroGenerated) setHeroImg(heroGenerated);
     } catch (e) {
       console.error(e); setError("생성 오류. 다시 시도해주세요.");
     } finally {
@@ -422,6 +436,38 @@ const handleHeroUpload = e => {
             <div style={{ marginTop: 20, padding: "14px 18px", background: "#f8fafc", borderRadius: 12, fontSize: 12, color: "#94a3b8", lineHeight: 1.8 }}>
               💡 생성 후 <strong style={{ color: "#6366f1" }}>텍스트 클릭 → 수정 + A-/A+ 폰트 조절</strong> · <strong style={{ color: "#555" }}>이미지 클릭 → 교체</strong>
             </div>
+          </div>
+
+          {/* 네이버 인기 TOP10 */}
+          <div style={{ background: "#fff", borderRadius: 20, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,.08)", marginTop: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <span style={{ fontSize: 18 }}>🔥</span>
+              <span style={{ fontSize: 14, fontWeight: 900, color: "#1e1b4b" }}>네이버 쇼핑 인기 키워드 TOP 10</span>
+              {kwLoading && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 4 }}>불러오는 중...</span>}
+            </div>
+            {kwLoading ? (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {[...Array(10)].map((_, i) => (
+                  <div key={i} style={{ width: 100, height: 32, background: "#f1f5f9", borderRadius: 20, animation: "pulse 1.5s ease-in-out infinite" }} />
+                ))}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {topKw.slice(0, 10).map((kw, i) => (
+                  <button key={i} onClick={() => setPN(kw)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 6,
+                      padding: "7px 14px", borderRadius: 20, border: "1.5px solid #e8eeff",
+                      background: pname === kw ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "#fff",
+                      color: pname === kw ? "#fff" : "#374151",
+                      fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s",
+                    }}>
+                    <span style={{ fontSize: 11, fontWeight: 900, color: pname === kw ? "rgba(255,255,255,.7)" : "#6366f1", minWidth: 14 }}>{i + 1}</span>
+                    {kw}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
