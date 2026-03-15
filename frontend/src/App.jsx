@@ -252,8 +252,10 @@ const callClaude = async (msg, imgDataUrl = null) => {
   let content = imgDataUrl
     ? (() => { const p = parseDataUrl(imgDataUrl); return p ? [{ type: "image", source: { type: "base64", media_type: p.mime, data: p.data } }, { type: "text", text: msg }] : msg; })()
     : msg;
+  const headers = { "Content-Type": "application/json" };
+  if (apiKeys.anthropic) headers["x-api-key"] = apiKeys.anthropic;
   const res = await fetch("/api/claude", {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST", headers,
     body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 3000, system: DP_SYSTEM, messages: [{ role: "user", content }] }),
   });
   const data = await res.json();
@@ -271,17 +273,17 @@ export default function App() {
   const [heroName, setHeroName] = useState("");
   const [pointImgs, setPointImgs] = useState(["", "", ""]);
   const [downloading, setDownloading] = useState(false);
-  const [topKw, setTopKw] = useState([]);
-  const [kwLoading, setKwLoading] = useState(false);
+  const [apiKeys, setApiKeys] = useState({ anthropic: "", gemini: "" });
   const pageRef = useRef(null);
 
   useEffect(() => {
-    setKwLoading(true);
-    fetch("/api/trending-keywords")
-      .then(r => r.json())
-      .then(d => setTopKw(d.keywords || []))
-      .catch(() => {})
-      .finally(() => setKwLoading(false));
+    // API 키 로드
+    const savedKeys = localStorage.getItem("apiKeys");
+    if (savedKeys) {
+      try {
+        setApiKeys(JSON.parse(savedKeys));
+      } catch {}
+    }
   }, []);
 
 const handleHeroUpload = e => {
@@ -308,10 +310,28 @@ const handleHeroUpload = e => {
       setLoadMsg("🖼️ POINT 이미지 생성 중...");
       const fetchImg = async ctx => {
         try {
-          const r = await fetch("/api/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ product_name: pname, context: ctx }) });
+          const body = { product_name: pname, context: ctx };
+          if (apiKeys.gemini) body.gemini_key = apiKeys.gemini;
+          const r = await fetch("/api/generate-image", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (!r.ok) {
+            const text = await r.text();
+            console.warn("generate-image failed", r.status, text);
+            try { const json = JSON.parse(text); if (json.error) setError(`이미지 생성 실패: ${json.error}`); }
+            catch {};
+            return "";
+          }
           const d = await r.json();
+          if (d.error) {
+            console.warn("generate-image error payload", d.error);
+            setError(`이미지 생성 실패: ${d.error}`);
+            return "";
+          }
           return d.image ? `data:${d.mime};base64,${d.image}` : "";
-        } catch { return ""; }
+        } catch (e) {
+          console.warn("generate-image error", e);
+          setError(`이미지 생성 실패: ${e.message || e}`);
+          return "";
+        }
       };
 
       const rawCtxs = parsed.pointContexts || (parsed.points || []).map(p => p.title || pname);
@@ -321,15 +341,24 @@ const handleHeroUpload = e => {
         Promise.all(ctxs.map((ctx, i) => pointImgs[i] ? Promise.resolve(pointImgs[i]) : fetchImg(ctx))),
         heroImg ? Promise.resolve(heroImg) : fetchImg(heroCtx),
       ]);
-      const pimgs3 = [pimgs[0] || "", pimgs[1] || "", pimgs[2] || ""];
+      const fallback = heroImg || heroGenerated || "";
+      const pimgs3 = [pimgs[0] || fallback, pimgs[1] || fallback, pimgs[2] || fallback];
       setResult(parsed);
       setPointImgs(pimgs3);
       if (!heroImg && heroGenerated) setHeroImg(heroGenerated);
+      if (!pimgs3.some(x => x)) {
+        setError("포인트 이미지 생성에 실패했습니다. API 키를 확인하거나 잠시 후 다시 시도해 주세요.");
+      }
     } catch (e) {
       console.error(e); setError("생성 오류. 다시 시도해주세요.");
     } finally {
       clearInterval(t); setLoading(false); setLoadMsg("");
     }
+  };
+
+  const saveApiKeys = () => {
+    localStorage.setItem("apiKeys", JSON.stringify(apiKeys));
+    alert("API 키가 저장되었습니다.");
   };
 
   const onUpd = useCallback(newD => setResult(newD), []);
@@ -379,6 +408,28 @@ const handleHeroUpload = e => {
           <div style={{ textAlign: "center", marginBottom: 32 }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: "#1e1b4b", marginBottom: 8, lineHeight: 1.4 }}>상품 이미지 1장 올리면<br/>AI가 상세페이지를 완성해드립니다</div>
             <div style={{ fontSize: 14, color: "#94a3b8" }}>POINT 이미지는 AI가 자동 생성 · 텍스트·이미지 클릭하여 직접 수정 가능</div>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 20, padding: "32px", boxShadow: "0 4px 24px rgba(0,0,0,.08)", marginBottom: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#1e1b4b", marginBottom: 14 }}>🔑 API 키 설정</div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
+              <input
+                type="password"
+                placeholder="ANTHROPIC_API_KEY"
+                value={apiKeys.anthropic}
+                onChange={e => setApiKeys(prev => ({ ...prev, anthropic: e.target.value }))}
+                style={{ flex: 1, padding: "14px 20px", borderRadius: 50, border: "1.5px solid #e2e8f0", fontSize: 15, outline: "none" }}
+              />
+              <input
+                type="password"
+                placeholder="GEMINI_API_KEY"
+                value={apiKeys.gemini}
+                onChange={e => setApiKeys(prev => ({ ...prev, gemini: e.target.value }))}
+                style={{ flex: 1, padding: "14px 20px", borderRadius: 50, border: "1.5px solid #e2e8f0", fontSize: 15, outline: "none" }}
+              />
+              <button onClick={saveApiKeys} style={{ padding: "14px 28px", borderRadius: 50, border: "none", background: "#6366f1", color: "#fff", fontSize: 15, fontWeight: 900, cursor: "pointer" }}>저장</button>
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8" }}>API 키를 입력하고 저장하면, 서버 재시작 없이 사용할 수 있습니다. (선택사항)</div>
           </div>
 
           <div style={{ background: "#fff", borderRadius: 20, padding: "32px", boxShadow: "0 4px 24px rgba(0,0,0,.08)" }}>
@@ -436,38 +487,6 @@ const handleHeroUpload = e => {
             <div style={{ marginTop: 20, padding: "14px 18px", background: "#f8fafc", borderRadius: 12, fontSize: 12, color: "#94a3b8", lineHeight: 1.8 }}>
               💡 생성 후 <strong style={{ color: "#6366f1" }}>텍스트 클릭 → 수정 + A-/A+ 폰트 조절</strong> · <strong style={{ color: "#555" }}>이미지 클릭 → 교체</strong>
             </div>
-          </div>
-
-          {/* 네이버 인기 TOP10 */}
-          <div style={{ background: "#fff", borderRadius: 20, padding: "24px 28px", boxShadow: "0 4px 24px rgba(0,0,0,.08)", marginTop: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <span style={{ fontSize: 18 }}>🔥</span>
-              <span style={{ fontSize: 14, fontWeight: 900, color: "#1e1b4b" }}>네이버 쇼핑 인기 키워드 TOP 10</span>
-              {kwLoading && <span style={{ fontSize: 11, color: "#94a3b8", marginLeft: 4 }}>불러오는 중...</span>}
-            </div>
-            {kwLoading ? (
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {[...Array(10)].map((_, i) => (
-                  <div key={i} style={{ width: 100, height: 32, background: "#f1f5f9", borderRadius: 20, animation: "pulse 1.5s ease-in-out infinite" }} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {topKw.slice(0, 10).map((kw, i) => (
-                  <button key={i} onClick={() => setPN(kw)}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "7px 14px", borderRadius: 20, border: "1.5px solid #e8eeff",
-                      background: pname === kw ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "#fff",
-                      color: pname === kw ? "#fff" : "#374151",
-                      fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "all .15s",
-                    }}>
-                    <span style={{ fontSize: 11, fontWeight: 900, color: pname === kw ? "rgba(255,255,255,.7)" : "#6366f1", minWidth: 14 }}>{i + 1}</span>
-                    {kw}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       ) : (
